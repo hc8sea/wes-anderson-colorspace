@@ -2,40 +2,75 @@
 import shutil
 import cv2
 import palettable
-
-
 import streamlit as st
 import numpy as np
 import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-import seaborn as sns
-
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.cluster import KMeans
 from sklearn.neighbors import KNeighborsClassifier
-
 from scipy.spatial import distance
-
 import plotly.express as px
+
+st.set_page_config(
+        page_title="Wes Anderson Color Palettes",
+)
+
+#Esta função gera uma array de pixels a partir de uma foto externa
+
+def url_to_pixel_matrix(url):
+  filename = url.split("/")[-1]
+  r = requests.get(url, stream = True)
+  r.raw.decode_content = True    # Open a local file with wb ( write binary ) permission.
+  with open(filename,'wb') as f:
+          shutil.copyfileobj(r.raw, f)
+  pixel_matrix_bgr = cv2.imread(filename) #original img
+  pixel_matrix_rgb = cv2.cvtColor(pixel_matrix_bgr, cv2.COLOR_BGR2RGB)
+  pixel_matrix_downscale = cv2.resize(pixel_matrix_rgb, (50,50)) #rescale image
+  return pixel_matrix_downscale
+
+#Esta função gera uma lista de pixels a partir de um array de pixels
+
+def pixel_matrix_to_pixel_flat(pixel_matrix):
+  pixel_list=[]
+  for i in pixel_matrix:
+    for j in i:
+        if int(j[0])+int(j[1])+int(j[2]) > 10:
+            pixel_list.append(j)
+  pixel_flat=np.array(pixel_list)
+  return pixel_flat
 
 def main():
 
-        st.header('Detector de paleta de cores')
+    st.header('Paletas de cor no Espaço RGB')
 
-        img_file_buffer = st.camera_input("Tire uma foto e aguarde")
+    st.write(
+"""
+Este Dashboard objetiva demonstrar a implementação de:
 
-        if img_file_buffer is not None:
+    1) Captura e manipulação de imagem via Streamlit e OpenCV
+    2) Algoritmo KMeans para clustering
+    3) Manipulação de dados via Pandas e Numpy
+    4) Plotagem 3D via plotly
 
-            bytes_data = img_file_buffer.getvalue()
-            cv2_img = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
+     """)
 
-            size_xy=cv2_img.shape[:2][::-1]
-            pixel_matrix_downscale = cv2.resize(cv2_img, (50,50))
-            pixel_matrix_rgb = cv2.cvtColor(pixel_matrix_downscale, cv2.COLOR_BGR2RGB)
+    st.write('Mais em: https://github.com/hc8sea/wes-anderson-colorspace')
 
-            pixel_flat = pixel_matrix_to_pixel_flat(pixel_matrix_rgb)
+    img_file_buffer = st.camera_input("Tire uma foto e aguarde")
+
+    if img_file_buffer is not None:
+
+        bytes_data = img_file_buffer.getvalue()
+        cv2_img = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
+
+        size_xy=cv2_img.shape[:2][::-1]
+        pixel_matrix_downscale = cv2.resize(cv2_img, (50,50))
+        pixel_matrix_rgb = cv2.cvtColor(pixel_matrix_downscale, cv2.COLOR_BGR2RGB)
+
+        pixel_flat = pixel_matrix_to_pixel_flat(pixel_matrix_rgb)
 
 
 
@@ -323,14 +358,14 @@ def main():
 
 
         #Representação 3D da paleta de cores detectada por clustering
-
+        st.header('Sua paleta de cores detectada no espaço RGB:')
         dfx = pd.DataFrame(k_means_cluster_centers_, columns = ('Red','Green','Blue'))
         dfx['hex'] = dfx.apply(lambda x: mpl.colors.to_hex([ x['Red'], x['Green'], x['Blue']]), axis=1)
         fig = px.scatter_3d(dfx, x='Red', y='Green', z='Blue', color_discrete_map='identity', color='hex')
         st.plotly_chart(fig)
 
         #Representação 3D do RGB Colorspace da paleta de cores de referência
-
+        st.header('Paleta de cores da cena do filme no espaço RGB:')
         dfw = pd.DataFrame(colorfilm, columns = ('Red','Green','Blue'))
         dfw['hex'] = dfw.apply(lambda x: mpl.colors.to_hex([ x['Red'], x['Green'], x['Blue']]), axis=1)
         figw = px.scatter_3d(dfw, x='Red', y='Green', z='Blue', color_discrete_map='identity', color='hex')
@@ -338,34 +373,21 @@ def main():
 
         #Representação 3D do RGB Colorspace de uma fração dos pixels da foto
 
-        dft = pd.DataFrame(pixel_flat/255., columns = ('Red','Green','Blue'))
-        dft['hex'] = dft.apply(lambda x: mpl.colors.to_hex([ x['Red'], x['Green'], x['Blue']]), axis=1)
-        figt = px.scatter_3d(dft.sample(frac=0.1), x='Red', y='Green', z='Blue', color_discrete_map='identity', color='hex')
-        st.plotly_chart(figt)
+        if st.button('Clique para mostrar o espaço RGB com todas as cores da sua foto'):
+            dft = pd.DataFrame(pixel_flat/255., columns = ('Red','Green','Blue'))
+            dft['hex'] = dft.apply(lambda x: mpl.colors.to_hex([ x['Red'], x['Green'], x['Blue']]), axis=1)
+            figt = px.scatter_3d(dft.sample(frac=0.1), x='Red', y='Green', z='Blue', color_discrete_map='identity', color='hex')
+            st.plotly_chart(figt)
 
-#Esta função gera uma array de pixels a partir de uma foto externa
 
-def url_to_pixel_matrix(url):
-  filename = url.split("/")[-1]
-  r = requests.get(url, stream = True)
-  r.raw.decode_content = True    # Open a local file with wb ( write binary ) permission.
-  with open(filename,'wb') as f:
-          shutil.copyfileobj(r.raw, f)
-  pixel_matrix_bgr = cv2.imread(filename) #original img
-  pixel_matrix_rgb = cv2.cvtColor(pixel_matrix_bgr, cv2.COLOR_BGR2RGB)
-  pixel_matrix_downscale = cv2.resize(pixel_matrix_rgb, (50,50)) #rescale image
-  return pixel_matrix_downscale
-
-#Esta função gera uma lista de pixels a partir de um array de pixels
-
-def pixel_matrix_to_pixel_flat(pixel_matrix):
-  pixel_list=[]
-  for i in pixel_matrix:
-    for j in i:
-        if int(j[0])+int(j[1])+int(j[2]) > 10:
-            pixel_list.append(j)
-  pixel_flat=np.array(pixel_list)
-  return pixel_flat
 
 if __name__ == '__main__':
     main()
+
+hide_streamlit_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            </style>
+            """
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
